@@ -15,6 +15,7 @@ import {
     blockHeavyResources,
     RateLimitError,
     DEFAULT_RATE_LIMIT_CONFIG,
+    sleep,
 } from '../utils/index.js';
 
 /**
@@ -63,8 +64,10 @@ export async function searchAction(input: SearchInput, log: Log): Promise<void> 
         headless: true,
         requestHandlerTimeoutSecs: 120,
         navigationTimeoutSecs: 60,
+        maxRequestRetries: rateLimitSettings.maxRetries, // Enable Crawlee retry on failures
         preNavigationHooks: [
-            async ({ page }) => {
+            async ({ page, request }) => {
+                // Set up blocking and listeners first (before any delays)
                 await blockHeavyResources(page);
                 // Intercept network responses to capture video URLs (before navigation)
                 page.on('response', async (response) => {
@@ -78,6 +81,20 @@ export async function searchAction(input: SearchInput, log: Log): Promise<void> 
                         /* ignore */
                     }
                 });
+
+                // Apply delays after setup (so listeners catch all requests)
+                if (rateLimitSettings.requestDelay > 0) {
+                    log.debug(`Applying request delay: ${rateLimitSettings.requestDelay}ms`);
+                    await sleep(rateLimitSettings.requestDelay);
+                }
+
+                // If this is a retry, apply exponential backoff
+                if (request.retryCount > 0) {
+                    const backoffDelay = rateLimitSettings.backoffDelay *
+                        Math.pow(rateLimitSettings.backoffMultiplier, request.retryCount - 1);
+                    log.warning(`Retry attempt ${request.retryCount}/${rateLimitSettings.maxRetries}, waiting ${backoffDelay / 1000}s...`);
+                    await sleep(backoffDelay);
+                }
             },
         ],
         launchContext: {
