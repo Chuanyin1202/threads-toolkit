@@ -121,6 +121,10 @@ async function parsePostFromElement(
             const avatarImg = container.querySelector('img[alt*="大頭貼"], img[alt*="profile"], img[alt*="avatar"]');
             const avatarUrl = avatarImg?.getAttribute('src') || undefined;
 
+            // Check if verified
+            const verifiedBadge = container.querySelector('svg[aria-label*="已驗證"], svg[aria-label*="Verified"], img[alt*="已驗證"], img[alt*="Verified"]');
+            const isVerified = verifiedBadge !== null;
+
             // Get content - collect all meaningful text (skip metadata/errors)
             const texts: string[] = [];
             const textElements = container.querySelectorAll('div[dir="auto"], span[dir="auto"]');
@@ -266,6 +270,7 @@ async function parsePostFromElement(
                 username,
                 displayName,
                 avatarUrl,
+                isVerified,
                 content: content ? content.slice(0, 2000) : '',
                 timestamp,
                 likes,
@@ -287,6 +292,7 @@ async function parsePostFromElement(
                 displayName: data.displayName || data.username,
                 profileUrl: `https://www.threads.com/@${data.username}`,
                 avatarUrl: data.avatarUrl,
+                isVerified: data.isVerified,
             },
             content: data.content,
             timestamp: normalizeTimestamp(data.timestamp),
