@@ -156,34 +156,33 @@ export async function profileAction(input: ProfileInput, log: Log): Promise<void
                 throw new Error(`Failed to extract profile data for @${username}`);
             }
 
-            // Fetch location and joined date via About API
-            // This triggers by clicking the "..." menu and "About this profile" option
-            try {
-                log.info('Attempting to fetch profile About data via menu click...');
+            // Fetch location and joined date via About dialog
+            // Only available when authenticated (requires login to see "About this profile" option)
+            if (useAuth) {
+                try {
+                    log.info('Fetching profile About data (authenticated mode)...');
+                    const aboutResponse = await fetchProfileAbout(page);
 
-                // Dummy tokens - the new method intercepts API triggered by UI click
-                const dummyTokens = { fb_dtsg: '', lsd: '', jazoest: '' };
-                const aboutResponse = await fetchProfileAbout(page, '', dummyTokens);
-
-                log.info('About API response', {
-                    hasData: !!aboutResponse.data,
-                    debug: aboutResponse.debug,
-                });
-
-                if (aboutResponse.data) {
-                    profileData.location = aboutResponse.data.location;
-                    profileData.joinedDate = aboutResponse.data.joinedDate;
-                    log.info('Profile About data extracted successfully', {
-                        location: aboutResponse.data.location,
-                        joinedDate: aboutResponse.data.joinedDate,
-                    });
-                } else {
-                    log.warning('About API returned no data', { debug: aboutResponse.debug });
+                    if (aboutResponse.data) {
+                        profileData.location = aboutResponse.data.location;
+                        profileData.joinedDate = aboutResponse.data.joinedDate;
+                        log.info('Profile About data extracted', {
+                            location: aboutResponse.data.location,
+                            joinedDate: aboutResponse.data.joinedDate,
+                        });
+                    } else {
+                        log.debug('About data not available', { debug: aboutResponse.debug });
+                        profileData.location = null;
+                        profileData.joinedDate = null;
+                    }
+                } catch (err) {
+                    log.warning('Failed to fetch profile About data', { error: String(err) });
                     profileData.location = null;
                     profileData.joinedDate = null;
                 }
-            } catch (err) {
-                log.warning('Failed to fetch profile About data', { error: String(err) });
+            } else {
+                // Skip About extraction in non-authenticated mode
+                log.debug('Skipping About data (requires authentication)');
                 profileData.location = null;
                 profileData.joinedDate = null;
             }
