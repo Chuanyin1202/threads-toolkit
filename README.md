@@ -355,6 +355,10 @@ Have questions or issues?
 - Report issues via the Issues tab
 - Contact support through the Apify platform
 
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
 ## Disclaimer
 
 This tool is for educational and research purposes only. Please use responsibly and comply with Threads' Terms of Service. The developers are not responsible for any misuse of this tool or violations of platform policies.
