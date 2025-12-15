@@ -2,7 +2,7 @@
 
 語言：[English](README.md) | [中文](README.zh-TW.md)
 
-強大可靠的 Apify Actor，用於爬取 Threads.net - Meta 的文字社群平台。擷取貼文、個人檔案、標籤和回覆，無需登入。可匯出為 JSON/CSV/Excel。
+強大可靠的 Apify Actor，用於爬取 Threads (threads.com) - Meta 的文字社群平台。擷取貼文、個人檔案、標籤和回覆。可匯出為 JSON/CSV/Excel。
 
 ## 重要：資料爬取限制
 
@@ -25,13 +25,12 @@
 
 ## 功能
 
-- **搜尋貼文**：依關鍵字搜尋貼文，支援排序選項
-- **標籤搜尋**：依 hashtag 搜尋貼文
-- **個人檔案爬取**：抓取用戶資料，包括簡介、粉絲數、驗證狀態和近期貼文
-- **單篇貼文擷取**：依 URL 抓取貼文詳情，包含回覆
+- **個人檔案爬取**：抓取用戶資料，包括簡介、粉絲數、驗證狀態和近期貼文（無需登入）
+- **單篇貼文擷取**：依 URL 抓取貼文詳情，包含回覆（無需登入）
+- **搜尋貼文**：依關鍵字搜尋貼文，支援排序選項（⚠️ 需要登入 Cookie）
+- **標籤搜尋**：依 hashtag 搜尋貼文（⚠️ 需要登入 Cookie）
 - **批次模式**：一次處理多個關鍵字/用戶名/標籤/URL，支援並行控制
 - **媒體擷取**：擷取貼文中的圖片和影片 URL
-- **無需登入**：僅爬取公開資料
 - **匯出格式**：JSON、CSV、Excel
 
 ## 輸入參數
@@ -94,44 +93,6 @@
 - 使用指數退避：預設設定下，首次重試等待 5 秒，第二次 10 秒，第三次 20 秒
 - 被限制時會記錄警告，幫助您監控和調整設定
 
-### 搜尋貼文 (Search)
-
-依關鍵字在 Threads.net 搜尋貼文。
-
-```json
-{
-    "action": "search",
-    "keyword": "人工智慧",
-    "filter": "recent",
-    "maxItems": 50
-}
-```
-
-| 欄位 | 型別 | 必填 | 說明 | 預設 |
-|------|------|------|------|------|
-| `keyword` | string | 是 | 搜尋關鍵字 | - |
-| `filter` | string | 否 | 排序方式：`recent`（最新）或 `top`（熱門） | `recent` |
-| `maxItems` | integer | 否 | 最大抓取數量（1-1000） | `50` |
-
-### 標籤搜尋 (Hashtag)
-
-依 hashtag 搜尋貼文。
-
-```json
-{
-    "action": "hashtag",
-    "tag": "AI",
-    "filter": "recent",
-    "maxItems": 50
-}
-```
-
-| 欄位 | 型別 | 必填 | 說明 | 預設 |
-|------|------|------|------|------|
-| `tag` | string | 是 | 標籤（可含 #） | - |
-| `filter` | string | 否 | 排序方式：`recent` 或 `top` | `recent` |
-| `maxItems` | integer | 否 | 最大抓取數量（1-1000） | `50` |
-
 ### 個人檔案 (Profile)
 
 抓取用戶資料和近期貼文。
@@ -166,6 +127,56 @@
 |------|------|------|------|------|
 | `postUrl` | string | 是 | Threads 貼文完整 URL | - |
 | `maxItems` | integer | 否 | 抓取回覆的上限 | `50` |
+
+### 搜尋貼文 (Search)（⚠️ 需要登入）
+
+> **重要**：自 2024 年 12 月起，Threads 需要登入才能存取搜尋結果。您必須提供包含有效登入 Cookie 的 `storageState` 才能使用此功能。
+
+依關鍵字在 Threads 搜尋貼文。
+
+```json
+{
+    "action": "search",
+    "keyword": "人工智慧",
+    "filter": "recent",
+    "maxItems": 50,
+    "useCookies": true,
+    "storageState": { "...您匯出的 storageState..." }
+}
+```
+
+| 欄位 | 型別 | 必填 | 說明 | 預設 |
+|------|------|------|------|------|
+| `keyword` | string | 是 | 搜尋關鍵字 | - |
+| `filter` | string | 否 | 排序方式：`recent`（最新）或 `top`（熱門） | `recent` |
+| `maxItems` | integer | 否 | 最大抓取數量（1-1000） | `50` |
+| `useCookies` | boolean | 是* | 搜尋功能必須為 `true` | `false` |
+| `storageState` | object | 是* | 包含登入 Cookie 的 Playwright storageState | - |
+
+### 標籤搜尋 (Hashtag)（⚠️ 需要登入）
+
+> **重要**：自 2024 年 12 月起，Threads 需要登入才能存取標籤搜尋結果。您必須提供包含有效登入 Cookie 的 `storageState` 才能使用此功能。
+
+依 hashtag 搜尋貼文。
+
+```json
+{
+    "action": "hashtag",
+    "tag": "AI",
+    "filter": "recent",
+    "maxItems": 50,
+    "useCookies": true,
+    "storageState": { "...您匯出的 storageState..." }
+}
+```
+
+| 欄位 | 型別 | 必填 | 說明 | 預設 |
+|------|------|------|------|------|
+| `tag` | string | 是 | 標籤（可含 #） | - |
+| `filter` | string | 否 | 排序方式：`recent` 或 `top` | `recent` |
+| `maxItems` | integer | 否 | 最大抓取數量（1-1000） | `50` |
+| `useCookies` | boolean | 是* | 標籤搜尋功能必須為 `true` | `false` |
+| `storageState` | object | 是* | 包含登入 Cookie 的 Playwright storageState | - |
 
 ### 批次模式 (Batch)
 

@@ -7,10 +7,10 @@
         "action": {
             "title": "Action",
             "type": "string",
-            "description": "Select the type of operation to perform",
-            "enum": ["search", "profile", "hashtag", "post"],
-            "enumTitles": ["🔍 Search Posts", "👤 User Profile", "#️⃣ Hashtag Search", "📝 Single Post"],
-            "default": "search"
+            "description": "Select the type of operation to perform. Note: Search and Hashtag require login cookies.",
+            "enum": ["profile", "post", "search", "hashtag"],
+            "enumTitles": ["👤 User Profile", "📝 Single Post", "🔍 Search Posts (requires login)", "#️⃣ Hashtag Search (requires login)"],
+            "default": "profile"
         },
         "keyword": {
             "title": "Search Keyword",
@@ -27,6 +27,8 @@
             "type": "string",
             "description": "⚠️ Required for 'User Profile' action. Enter username without @ (e.g., 'zuck')",
             "editor": "textfield",
+            "default": "zuck",
+            "prefill": "zuck",
             "sectionCaption": "👤 User Profile",
             "sectionDescription": "Fill this section when Action = User Profile"
         },

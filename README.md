@@ -2,7 +2,7 @@
 
 Languages: [English](README.md) | [中文](README.zh-TW.md)
 
-A powerful and reliable Apify Actor for scraping Threads.net - Meta's text-based social media platform. Extract posts, profiles, hashtags, and replies without login. Export to JSON/CSV/Excel.
+A powerful and reliable Apify Actor for scraping Threads (threads.com) - Meta's text-based social media platform. Extract posts, profiles, hashtags, and replies. Export to JSON/CSV/Excel.
 
 ## Important: Data Scraping Limitations
 
@@ -25,13 +25,12 @@ A powerful and reliable Apify Actor for scraping Threads.net - Meta's text-based
 
 ## Features
 
-- **Search Posts**: Search for posts by keyword with sorting options
-- **Hashtag Search**: Search posts by hashtag tag
-- **Profile Scraping**: Fetch user profile data including bio, follower count, verification status, and recent posts
-- **Single Post Extraction**: Extract detailed data from a specific post by URL, including replies
+- **Profile Scraping**: Fetch user profile data including bio, follower count, verification status, and recent posts (no login required)
+- **Single Post Extraction**: Extract detailed data from a specific post by URL, including replies (no login required)
+- **Search Posts**: Search for posts by keyword with sorting options (⚠️ requires login cookies)
+- **Hashtag Search**: Search posts by hashtag tag (⚠️ requires login cookies)
 - **Batch Mode**: Process multiple keywords/usernames/tags/URLs in one run with concurrency control
 - **Media Extraction**: Capture image and video URLs from posts
-- **No Login Required**: Scrapes public data only
 - **Export Formats**: JSON, CSV, Excel
 
 ## Input Parameters
@@ -94,44 +93,6 @@ Configure rate limit protection to avoid being blocked by Threads.
 - Uses exponential backoff: first retry after 5s, second after 10s, third after 20s (with default settings)
 - Logs warnings when rate limited to help you monitor and adjust settings
 
-### Search Action
-
-Search for posts by keyword on Threads.net.
-
-```json
-{
-    "action": "search",
-    "keyword": "artificial intelligence",
-    "filter": "recent",
-    "maxItems": 50
-}
-```
-
-| Field | Type | Required | Description | Default |
-|-------|------|----------|-------------|---------|
-| `keyword` | string | Yes | Search keyword | - |
-| `filter` | string | No | Sort results: `recent` or `top` | `recent` |
-| `maxItems` | integer | No | Maximum posts to return (1-1000) | `50` |
-
-### Hashtag Action
-
-Search posts by hashtag.
-
-```json
-{
-    "action": "hashtag",
-    "tag": "AI",
-    "filter": "recent",
-    "maxItems": 50
-}
-```
-
-| Field | Type | Required | Description | Default |
-|-------|------|----------|-------------|---------|
-| `tag` | string | Yes | Hashtag to search (with or without #) | - |
-| `filter` | string | No | Sort results: `recent` or `top` | `recent` |
-| `maxItems` | integer | No | Maximum posts to return (1-1000) | `50` |
-
 ### Profile Action
 
 Fetch user profile data and recent posts.
@@ -166,6 +127,56 @@ Extract detailed data from a specific post including replies.
 |-------|------|----------|-------------|---------|
 | `postUrl` | string | Yes | Full URL to the Threads post | - |
 | `maxItems` | integer | No | Maximum replies to fetch | `50` |
+
+### Search Action (⚠️ Requires Login)
+
+> **Important**: As of December 2024, Threads requires login to access search results. You must provide `storageState` with valid login cookies for this action to work.
+
+Search for posts by keyword on Threads.
+
+```json
+{
+    "action": "search",
+    "keyword": "artificial intelligence",
+    "filter": "recent",
+    "maxItems": 50,
+    "useCookies": true,
+    "storageState": { "...your exported storageState..." }
+}
+```
+
+| Field | Type | Required | Description | Default |
+|-------|------|----------|-------------|---------|
+| `keyword` | string | Yes | Search keyword | - |
+| `filter` | string | No | Sort results: `recent` or `top` | `recent` |
+| `maxItems` | integer | No | Maximum posts to return (1-1000) | `50` |
+| `useCookies` | boolean | Yes* | Must be `true` for search | `false` |
+| `storageState` | object | Yes* | Playwright storageState with login cookies | - |
+
+### Hashtag Action (⚠️ Requires Login)
+
+> **Important**: As of December 2024, Threads requires login to access hashtag search results. You must provide `storageState` with valid login cookies for this action to work.
+
+Search posts by hashtag.
+
+```json
+{
+    "action": "hashtag",
+    "tag": "AI",
+    "filter": "recent",
+    "maxItems": 50,
+    "useCookies": true,
+    "storageState": { "...your exported storageState..." }
+}
+```
+
+| Field | Type | Required | Description | Default |
+|-------|------|----------|-------------|---------|
+| `tag` | string | Yes | Hashtag to search (with or without #) | - |
+| `filter` | string | No | Sort results: `recent` or `top` | `recent` |
+| `maxItems` | integer | No | Maximum posts to return (1-1000) | `50` |
+| `useCookies` | boolean | Yes* | Must be `true` for hashtag search | `false` |
+| `storageState` | object | Yes* | Playwright storageState with login cookies | - |
 
 ### Batch Mode
 

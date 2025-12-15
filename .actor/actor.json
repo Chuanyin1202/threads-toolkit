@@ -2,7 +2,7 @@
 	"actorSpecification": 1,
 	"name": "threads-toolkit",
 	"title": "Threads Toolkit",
-	"description": "Powerful Threads.net scraper - search posts, fetch profiles, and extract data with flexible output formats.",
+	"description": "Powerful Threads scraper - search posts, fetch profiles, and extract data with flexible output formats.",
 	"version": "0.1",
 	"meta": {
 		"templateId": "ts-crawlee-playwright-chrome",

@@ -2,7 +2,7 @@
 	"name": "threads-toolkit",
 	"version": "0.1.0",
 	"type": "module",
-	"description": "Powerful Threads.net scraper - search posts, fetch profiles, and extract data.",
+	"description": "Powerful Threads scraper - search posts, fetch profiles, and extract data.",
 	"engines": {
 		"node": ">=18.0.0"
 	},
