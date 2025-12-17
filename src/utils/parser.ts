@@ -208,7 +208,7 @@ async function parsePostFromElement(
             }
 
             // Get stats - inline parsing to avoid esbuild __name helper issue
-            let likes = 0, replies = 0, reposts = 0;
+            let likes = 0, replies = 0, reposts = 0, shares = 0;
             const roleButtons = container.querySelectorAll('div[role="button"]');
             for (const btn of roleButtons) {
                 const text = btn.textContent || '';
@@ -225,9 +225,10 @@ async function parsePostFromElement(
                         num = parseInt(numStr, 10) || 0;
                     }
                 }
-                if (text.includes('讚') || /^Like/i.test(text)) likes = num;
-                else if (text.includes('留言') || text.includes('回覆') || /^Comment/i.test(text)) replies = num;
-                else if (text.includes('轉發') || /^Repost/i.test(text)) reposts = num;
+                if (text.includes('讚') || /like/i.test(text)) likes = num;
+                else if (text.includes('留言') || text.includes('回覆') || /comment|reply/i.test(text)) replies = num;
+                else if (text.includes('轉發') || /repost/i.test(text)) reposts = num;
+                else if (text.includes('分享') || /share/i.test(text)) shares = num;
             }
 
             // Get images (exclude avatars)
@@ -276,6 +277,7 @@ async function parsePostFromElement(
                 likes,
                 replies,
                 reposts,
+                shares,
                 images,
                 videos,
                 links,
@@ -300,6 +302,7 @@ async function parsePostFromElement(
                 likes: data.likes || 0,
                 replies: data.replies || 0,
                 reposts: data.reposts || 0,
+                shares: data.shares || 0,
             },
             images: data.images.length > 0 ? data.images : undefined,
             videos: data.videos && data.videos.length > 0 ? data.videos : undefined,
@@ -321,7 +324,7 @@ async function parsePostFromElement(
                             },
                       content: data.quoted.content || '',
                       timestamp: '',
-                      stats: { likes: 0, replies: 0, reposts: 0 },
+                      stats: { likes: 0, replies: 0, reposts: 0, shares: 0 },
                   }
                 : undefined,
         };
@@ -553,6 +556,7 @@ async function parseStats(postElement: Locator): Promise<PostStats> {
         likes: await parseCount(SELECTORS.post.stats.likes),
         replies: await parseCount(SELECTORS.post.stats.replies),
         reposts: await parseCount(SELECTORS.post.stats.reposts),
+        shares: await parseCount(SELECTORS.post.stats.shares),
     };
 }
 

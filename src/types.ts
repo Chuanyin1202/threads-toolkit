@@ -80,6 +80,7 @@ export interface PostStats {
     likes: number;
     replies: number;
     reposts: number;
+    shares: number;
 }
 
 export interface ThreadsPost {
