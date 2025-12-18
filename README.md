@@ -225,7 +225,8 @@ Each post is stored as a separate record:
     "stats": {
         "likes": 142,
         "replies": 23,
-        "reposts": 8
+        "reposts": 8,
+        "shares": 5
     },
     "images": ["https://..."],
     "videos": ["https://..."],
@@ -250,6 +251,7 @@ Each post is stored as a separate record:
 | `stats.likes` | integer | Number of likes |
 | `stats.replies` | integer | Number of replies |
 | `stats.reposts` | integer | Number of reposts |
+| `stats.shares` | integer | Number of shares |
 | `images` | array | Image URLs (if any) |
 | `videos` | array | Video URLs (if any) |
 | `links` | array | External links (non-Threads) |
@@ -341,7 +343,7 @@ A: Use Apify Proxy (recommended), reduce concurrency, and add intervals between 
 A: The Actor will log an error and skip that request. Consider using different proxy settings or reducing request frequency.
 
 **Q: Can I get engagement metrics?**
-A: Yes. The Actor extracts likes, replies, and reposts for each post to help you analyze content performance.
+A: Yes. The Actor extracts likes, replies, reposts, and shares for each post to help you analyze content performance.
 
 ## Alternative: Official Threads API
 

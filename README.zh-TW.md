@@ -225,7 +225,8 @@
     "stats": {
         "likes": 142,
         "replies": 23,
-        "reposts": 8
+        "reposts": 8,
+        "shares": 5
     },
     "images": ["https://..."],
     "videos": ["https://..."],
@@ -250,6 +251,7 @@
 | `stats.likes` | integer | 按讚數 |
 | `stats.replies` | integer | 回覆數 |
 | `stats.reposts` | integer | 轉發數 |
+| `stats.shares` | integer | 分享數 |
 | `images` | array | 圖片 URL 陣列 |
 | `videos` | array | 影片 URL 陣列 |
 | `links` | array | 外部連結（非 Threads） |
@@ -341,7 +343,7 @@
 答：Actor 會記錄錯誤並跳過該請求。考慮使用不同的代理設定或降低請求頻率。
 
 **問：可以取得互動指標嗎？**
-答：可以。Actor 會擷取每則貼文的按讚、回覆和轉發數，幫助您分析內容表現。
+答：可以。Actor 會擷取每則貼文的按讚、回覆、轉發和分享數，幫助您分析內容表現。
 
 ## 替代方案：官方 Threads API
 
