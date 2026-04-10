@@ -6,7 +6,7 @@
 	"version": "0.1",
 	"meta": {
 		"templateId": "ts-crawlee-playwright-chrome",
-		"generatedBy": "claude-opus-4-5-20251101"
+		"generatedBy": "Alex Huang"
 	},
 	"input": "./input_schema.json",
 	"output": "./output_schema.json",
