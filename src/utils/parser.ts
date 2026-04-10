@@ -717,14 +717,91 @@ export async function extractProfileFromPage(page: Page, username: string): Prom
             };
         }, username);
 
+        let { displayName, followersCount, avatarUrl, bio, isVerified } = data;
+        if (displayName === username || followersCount === undefined || !avatarUrl || bio === undefined || !isVerified) {
+            const scriptPayloads = await page.locator('script[type="application/json"]').allTextContents().catch(() => []);
+            const escapedUsername = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            for (const payload of scriptPayloads) {
+                if (!payload.includes(`"username":"${username}"`)) continue;
+
+                if (displayName === username) {
+                    const fullNameMatch = payload.match(
+                        new RegExp(`"username":"${escapedUsername}"[\\s\\S]{0,1200}?"full_name":"([^"]+)"`, 'i'),
+                    ) ?? payload.match(
+                        new RegExp(`"full_name":"([^"]+)"[\\s\\S]{0,1200}?"username":"${escapedUsername}"`, 'i'),
+                    );
+
+                    if (fullNameMatch?.[1]) {
+                        displayName = fullNameMatch[1].trim();
+                    }
+                }
+
+                if (followersCount === undefined) {
+                    const followerMatch = payload.match(
+                        new RegExp(`"username":"${escapedUsername}"[\\s\\S]{0,1600}?"follower_count":(\\d+)`, 'i'),
+                    ) ?? payload.match(
+                        new RegExp(`"follower_count":(\\d+)[\\s\\S]{0,1600}?"username":"${escapedUsername}"`, 'i'),
+                    );
+
+                    if (followerMatch?.[1]) {
+                        followersCount = Number.parseInt(followerMatch[1], 10);
+                    }
+                }
+
+                if (!avatarUrl) {
+                    const avatarMatch = payload.match(
+                        new RegExp(`"profile_pic_url":"([^"]+)"[\\s\\S]{0,1200}?"username":"${escapedUsername}"`, 'i'),
+                    ) ?? payload.match(
+                        new RegExp(`"username":"${escapedUsername}"[\\s\\S]{0,1200}?"profile_pic_url":"([^"]+)"`, 'i'),
+                    );
+
+                    if (avatarMatch?.[1]) {
+                        avatarUrl = avatarMatch[1].replace(/\\\//g, '/');
+                    }
+                }
+
+                if (bio === undefined) {
+                    const bioMatch = payload.match(
+                        new RegExp(`"username":"${escapedUsername}"[\\s\\S]{0,1800}?"biography":"([^"]*)"`, 'i'),
+                    ) ?? payload.match(
+                        new RegExp(`"biography":"([^"]*)"[\\s\\S]{0,1800}?"username":"${escapedUsername}"`, 'i'),
+                    );
+
+                    if (bioMatch) {
+                        bio = bioMatch[1]
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\\//g, '/')
+                            .trim() || undefined;
+                    }
+                }
+
+                if (!isVerified) {
+                    const verifiedMatch = payload.match(
+                        new RegExp(`"username":"${escapedUsername}"[\\s\\S]{0,1600}?"is_verified":(true|false)`, 'i'),
+                    ) ?? payload.match(
+                        new RegExp(`"is_verified":(true|false)[\\s\\S]{0,1600}?"username":"${escapedUsername}"`, 'i'),
+                    );
+
+                    if (verifiedMatch?.[1]) {
+                        isVerified = verifiedMatch[1] === 'true';
+                    }
+                }
+
+                if (displayName !== username && followersCount !== undefined && avatarUrl && bio !== undefined && isVerified) {
+                    break;
+                }
+            }
+        }
+
         return {
             username: data.username,
-            displayName: data.displayName,
+            displayName,
             profileUrl: `https://www.threads.com/@${data.username}`,
-            avatarUrl: data.avatarUrl,
-            bio: data.bio,
-            isVerified: data.isVerified,
-            followersCount: data.followersCount,
+            avatarUrl,
+            bio,
+            isVerified,
+            followersCount,
         };
     } catch {
         return null;

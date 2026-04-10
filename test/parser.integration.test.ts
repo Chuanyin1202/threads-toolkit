@@ -57,6 +57,9 @@ const PROFILE_HTML = `
       <a href="/followers">1.5K followers</a>
       <div dir="auto">Builder, writer, and Threads test profile.</div>
     </div>
+    <script type="application/json">
+      {"data":{"user":{"username":"alice","full_name":"Alice Example","follower_count":1500}}}
+    </script>
   </body>
 </html>
 `;
