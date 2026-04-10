@@ -324,6 +324,7 @@ Current automated tests cover:
 - selector utility behavior
 - post/profile validation rules
 - relative time and stat number parsing
+- fixture-based parser integration tests for search results, single posts, and profile pages
 
 They do not yet cover live Threads scraping flows.
 

@@ -324,6 +324,7 @@ npm test
 - selector 工具函式
 - 貼文／個人檔案驗證規則
 - 相對時間與互動數字解析
+- 以 fixture 驗證 search results、single post、profile 頁面的 parser 行為
 
 目前尚未包含真實 Threads 網站的自動化 smoke test。
 
