@@ -27,11 +27,22 @@ A powerful and reliable Apify Actor for scraping Threads (threads.com) - Meta's 
 
 - **Profile Scraping**: Fetch user profile data including bio, follower count, verification status, and recent posts (no login required)
 - **Single Post Extraction**: Extract detailed data from a specific post by URL, including replies (no login required)
-- **Search Posts**: Search for posts by keyword with sorting options (⚠️ requires login cookies)
-- **Hashtag Search**: Search posts by hashtag tag (⚠️ requires login cookies)
+- **Search Posts**: Search for posts by keyword with sorting options (currently works without login in our latest smoke tests)
+- **Hashtag Search**: Search posts by hashtag tag (currently works without login in our latest smoke tests)
 - **Batch Mode**: Process multiple keywords/usernames/tags/URLs in one run with concurrency control
 - **Media Extraction**: Capture image and video URLs from posts
 - **Export Formats**: JSON, CSV, Excel
+
+## Validation
+
+- `npm test`: unit tests and fixture-based parser integration tests
+- `npm run smoke:live`: live smoke tests for profile, post, search, and hashtag actions against public Threads pages
+- `npm run smoke:auth`: authenticated profile smoke test for auth-only fields such as `location` and `joinedDate`
+
+For `npm run smoke:auth`, provide one of:
+
+- `THREADS_STORAGE_STATE_PATH=/path/to/storageState.json`
+- `THREADS_STORAGE_STATE_JSON='{"cookies":[...],"origins":[...]}'`
 
 ## Input Parameters
 
@@ -44,7 +55,7 @@ A powerful and reliable Apify Actor for scraping Threads (threads.com) - Meta's 
 
 ### Authentication (Optional)
 
-Enable cookie injection for extended data access. Useful when encountering login walls.
+Enable cookie injection for extended data access. Useful when encountering login walls or when you need auth-only profile fields.
 
 | Field | Type | Required | Description | Default |
 |-------|------|----------|-------------|---------|
@@ -130,7 +141,7 @@ Extract detailed data from a specific post including replies.
 
 ### Search Action (⚠️ Requires Login)
 
-> **Important**: As of December 2024, Threads requires login to access search results. You must provide `storageState` with valid login cookies for this action to work.
+> **Current behavior**: In our latest live smoke tests, Threads search worked without login. Keep `useCookies` and `storageState` available as a fallback for login walls or rate-limit changes.
 
 Search for posts by keyword on Threads.
 
@@ -150,12 +161,12 @@ Search for posts by keyword on Threads.
 | `keyword` | string | Yes | Search keyword | - |
 | `filter` | string | No | Sort results: `recent` or `top` | `recent` |
 | `maxItems` | integer | No | Maximum posts to return (1-1000) | `50` |
-| `useCookies` | boolean | Yes* | Must be `true` for search | `false` |
-| `storageState` | object | Yes* | Playwright storageState with login cookies | - |
+| `useCookies` | boolean | No | Optional fallback for login walls / auth-only access | `false` |
+| `storageState` | object | No | Playwright storageState with login cookies | - |
 
 ### Hashtag Action (⚠️ Requires Login)
 
-> **Important**: As of December 2024, Threads requires login to access hashtag search results. You must provide `storageState` with valid login cookies for this action to work.
+> **Current behavior**: In our latest live smoke tests, Threads hashtag search worked without login. Keep `useCookies` and `storageState` available as a fallback for login walls or rate-limit changes.
 
 Search posts by hashtag.
 
@@ -175,8 +186,8 @@ Search posts by hashtag.
 | `tag` | string | Yes | Hashtag to search (with or without #) | - |
 | `filter` | string | No | Sort results: `recent` or `top` | `recent` |
 | `maxItems` | integer | No | Maximum posts to return (1-1000) | `50` |
-| `useCookies` | boolean | Yes* | Must be `true` for hashtag search | `false` |
-| `storageState` | object | Yes* | Playwright storageState with login cookies | - |
+| `useCookies` | boolean | No | Optional fallback for login walls / auth-only access | `false` |
+| `storageState` | object | No | Playwright storageState with login cookies | - |
 
 ### Batch Mode
 

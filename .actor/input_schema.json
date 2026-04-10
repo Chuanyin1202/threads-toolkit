@@ -7,9 +7,9 @@
         "action": {
             "title": "Action",
             "type": "string",
-            "description": "Select the type of operation to perform. Note: Search and Hashtag require login cookies.",
+            "description": "Select the type of operation to perform. Search and Hashtag currently work without login in our latest smoke tests, but cookies can still help when Threads shows login walls.",
             "enum": ["profile", "post", "search", "hashtag"],
-            "enumTitles": ["👤 User Profile", "📝 Single Post", "🔍 Search Posts (requires login)", "#️⃣ Hashtag Search (requires login)"],
+            "enumTitles": ["👤 User Profile", "📝 Single Post", "🔍 Search Posts", "#️⃣ Hashtag Search"],
             "default": "profile"
         },
         "keyword": {
@@ -84,7 +84,7 @@
         "useCookies": {
             "title": "Use Login Cookies",
             "type": "boolean",
-            "description": "Enable to use saved login state for extended data access. Requires storageState below.",
+            "description": "Enable saved login state for auth-only fields and as a fallback when Threads shows login walls. Requires storageState below.",
             "default": false,
             "sectionCaption": "🔐 Authentication (Optional)",
             "sectionDescription": "Use saved login cookies for more data access"

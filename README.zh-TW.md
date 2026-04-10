@@ -27,11 +27,22 @@
 
 - **個人檔案爬取**：抓取用戶資料，包括簡介、粉絲數、驗證狀態和近期貼文（無需登入）
 - **單篇貼文擷取**：依 URL 抓取貼文詳情，包含回覆（無需登入）
-- **搜尋貼文**：依關鍵字搜尋貼文，支援排序選項（⚠️ 需要登入 Cookie）
-- **標籤搜尋**：依 hashtag 搜尋貼文（⚠️ 需要登入 Cookie）
+- **搜尋貼文**：依關鍵字搜尋貼文，支援排序選項（依最新 smoke test，目前可無登入使用）
+- **標籤搜尋**：依 hashtag 搜尋貼文（依最新 smoke test，目前可無登入使用）
 - **批次模式**：一次處理多個關鍵字/用戶名/標籤/URL，支援並行控制
 - **媒體擷取**：擷取貼文中的圖片和影片 URL
 - **匯出格式**：JSON、CSV、Excel
+
+## 驗證方式
+
+- `npm test`：單元測試與 fixture parser 整合測試
+- `npm run smoke:live`：對 profile、post、search、hashtag 跑真站 smoke test
+- `npm run smoke:auth`：驗證需要登入的 profile 額外欄位，例如 `location`、`joinedDate`
+
+執行 `npm run smoke:auth` 前，請提供以下其中一種：
+
+- `THREADS_STORAGE_STATE_PATH=/path/to/storageState.json`
+- `THREADS_STORAGE_STATE_JSON='{"cookies":[...],"origins":[...]}'`
 
 ## 輸入參數
 
@@ -44,7 +55,7 @@
 
 ### 身份驗證（選用）
 
-啟用 Cookie 注入以取得更多資料。當遇到登入牆時特別有用。
+啟用 Cookie 注入以取得更多資料。當遇到登入牆，或需要 auth-only 的個人檔案欄位時特別有用。
 
 | 欄位 | 型別 | 必填 | 說明 | 預設 |
 |------|------|------|------|------|
@@ -130,7 +141,7 @@
 
 ### 搜尋貼文 (Search)（⚠️ 需要登入）
 
-> **重要**：自 2024 年 12 月起，Threads 需要登入才能存取搜尋結果。您必須提供包含有效登入 Cookie 的 `storageState` 才能使用此功能。
+> **目前行為**：依我們最新的真站 smoke test，Threads 搜尋在無登入狀態下也可運作。仍建議保留 `useCookies` 與 `storageState` 作為登入牆或風控變動時的 fallback。
 
 依關鍵字在 Threads 搜尋貼文。
 
@@ -150,12 +161,12 @@
 | `keyword` | string | 是 | 搜尋關鍵字 | - |
 | `filter` | string | 否 | 排序方式：`recent`（最新）或 `top`（熱門） | `recent` |
 | `maxItems` | integer | 否 | 最大抓取數量（1-1000） | `50` |
-| `useCookies` | boolean | 是* | 搜尋功能必須為 `true` | `false` |
-| `storageState` | object | 是* | 包含登入 Cookie 的 Playwright storageState | - |
+| `useCookies` | boolean | 否 | 作為登入牆 / auth-only 存取的可選 fallback | `false` |
+| `storageState` | object | 否 | 包含登入 Cookie 的 Playwright storageState | - |
 
 ### 標籤搜尋 (Hashtag)（⚠️ 需要登入）
 
-> **重要**：自 2024 年 12 月起，Threads 需要登入才能存取標籤搜尋結果。您必須提供包含有效登入 Cookie 的 `storageState` 才能使用此功能。
+> **目前行為**：依我們最新的真站 smoke test，Threads 標籤搜尋在無登入狀態下也可運作。仍建議保留 `useCookies` 與 `storageState` 作為登入牆或風控變動時的 fallback。
 
 依 hashtag 搜尋貼文。
 
@@ -175,8 +186,8 @@
 | `tag` | string | 是 | 標籤（可含 #） | - |
 | `filter` | string | 否 | 排序方式：`recent` 或 `top` | `recent` |
 | `maxItems` | integer | 否 | 最大抓取數量（1-1000） | `50` |
-| `useCookies` | boolean | 是* | 標籤搜尋功能必須為 `true` | `false` |
-| `storageState` | object | 是* | 包含登入 Cookie 的 Playwright storageState | - |
+| `useCookies` | boolean | 否 | 作為登入牆 / auth-only 存取的可選 fallback | `false` |
+| `storageState` | object | 否 | 包含登入 Cookie 的 Playwright storageState | - |
 
 ### 批次模式 (Batch)
 

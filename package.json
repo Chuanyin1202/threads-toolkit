@@ -33,6 +33,8 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"test": "node --import tsx --test test/**/*.test.ts",
+		"smoke:live": "node --import tsx scripts/smoke-live.mjs",
+		"smoke:auth": "node --import tsx scripts/smoke-auth.mjs",
 		"postinstall": "npx crawlee install-playwright-browsers"
 	},
 	"author": "It's not you it's me",
