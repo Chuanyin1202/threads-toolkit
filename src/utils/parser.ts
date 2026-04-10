@@ -788,9 +788,32 @@ export async function extractSinglePostFromPage(page: Page, postId: string, post
     const parsed = await parsePostFromElement(element, page, postId);
     if (!parsed) return null;
 
+    let { displayName } = parsed.author;
+    if (!displayName || displayName === parsed.author.username) {
+        const scriptPayloads = await page.locator('script[type="application/json"]').allTextContents().catch(() => []);
+        const escapedUsername = parsed.author.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        for (const payload of scriptPayloads) {
+            const fullNameMatch = payload.match(
+                new RegExp(`"username":"${escapedUsername}"[\\s\\S]{0,1200}?"full_name":"([^"]+)"`, 'i'),
+            ) ?? payload.match(
+                new RegExp(`"full_name":"([^"]+)"[\\s\\S]{0,1200}?"username":"${escapedUsername}"`, 'i'),
+            );
+
+            if (fullNameMatch?.[1]) {
+                displayName = fullNameMatch[1].trim();
+                break;
+            }
+        }
+    }
+
     // Override URL with normalized input to avoid href discrepancies
     return {
         ...parsed,
+        author: {
+            ...parsed.author,
+            displayName,
+        },
         url: postUrl,
     };
 }

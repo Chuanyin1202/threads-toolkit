@@ -5,6 +5,7 @@
 .vscode
 .zed
 dist
+tsconfig.tsbuildinfo
 node_modules
 apify_storage
 storage

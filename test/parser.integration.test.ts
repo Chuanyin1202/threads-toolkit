@@ -13,6 +13,8 @@ import {
 const SEARCH_RESULTS_HTML = `
 <!doctype html>
 <html>
+  <head>
+  </head>
   <body>
     <div role="main">
       <div tabindex="0">
@@ -38,6 +40,9 @@ const SEARCH_RESULTS_HTML = `
         </div>
       </div>
     </div>
+    <script type="application/json">
+      {"data":{"post":{"user":{"username":"alice","full_name":"Alice Example"}}}}
+    </script>
   </body>
 </html>
 `;
@@ -98,4 +103,5 @@ void test('extractSinglePostFromPage parses a dedicated post page fixture', asyn
     assert.equal(post?.id, 'abc123');
     assert.equal(post?.url, 'https://www.threads.com/@alice/post/abc123');
     assert.equal(post?.author.username, 'alice');
+    assert.equal(post?.author.displayName, 'Alice Example');
 });
