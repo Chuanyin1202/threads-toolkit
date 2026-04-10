@@ -303,6 +303,30 @@
 - **個人檔案**：缺少非必填欄位（如簡介/頭像/粉絲數）時仍保留記錄，但標記 `partial: true` 和 `missingFields`
 - **回覆和個人頁貼文**：使用相同驗證邏輯，無效項目會被跳過
 
+## 本地開發
+
+```bash
+# 安裝依賴
+npm install
+
+# 檢查 source 與 test
+npm run lint
+
+# 編譯 TypeScript
+npm run build
+
+# 執行單元測試
+npm test
+```
+
+目前自動化測試覆蓋：
+- 貼文 URL 正規化與貼文 ID 擷取
+- selector 工具函式
+- 貼文／個人檔案驗證規則
+- 相對時間與互動數字解析
+
+目前尚未包含真實 Threads 網站的自動化 smoke test。
+
 ## 使用案例
 
 - **社群媒體監控**：追蹤品牌提及和對話

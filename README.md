@@ -303,6 +303,30 @@ Note: Recent posts from the profile page are pushed as separate Dataset items wi
 - **Profiles**: If optional fields are missing (e.g., bio/avatar/followers), the record is kept but marked with `partial: true` and `missingFields`
 - **Replies and profile posts**: Reuse the same validation; invalid ones are skipped
 
+## Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Lint source and tests
+npm run lint
+
+# Build TypeScript output
+npm run build
+
+# Run unit tests
+npm test
+```
+
+Current automated tests cover:
+- post URL normalization and post ID extraction
+- selector utility behavior
+- post/profile validation rules
+- relative time and stat number parsing
+
+They do not yet cover live Threads scraping flows.
+
 ## Use Cases
 
 - **Social Media Monitoring**: Track brand mentions and conversations

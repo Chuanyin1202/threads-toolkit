@@ -7,10 +7,13 @@
  * - Post validation
  */
 
-import type { Page } from 'playwright';
 import type { Log } from 'crawlee';
-import type { ThreadsPost, ProfileData, RateLimitConfig } from '../types.js';
+import type { Page } from 'playwright';
+
+import type { ProfileData, RateLimitConfig, ThreadsPost } from '../types.js';
 import { SELECTORS } from './selectors.js';
+
+const THREADS_VIDEO_REQUESTS_KEY = '__threadsVideoRequests';
 
 // Default rate limit configuration
 export const DEFAULT_RATE_LIMIT_CONFIG: Required<RateLimitConfig> = {
@@ -49,8 +52,8 @@ export class RateLimitError extends Error {
  */
 export async function blockHeavyResources(page: Page): Promise<void> {
     // Block heavy resources to save bandwidth
-    const blockedTypes = new Set(["image", "font", "media"]);
-    await page.route("**/*", (route) => {
+    const blockedTypes = new Set(['image', 'font', 'media']);
+    await page.route("**/*", async (route) => {
         const rt = route.request().resourceType();
         if (blockedTypes.has(rt)) {
             return route.abort();
@@ -65,7 +68,7 @@ export async function blockHeavyResources(page: Page): Promise<void> {
  */
 export async function detectPageError(page: Page): Promise<PageErrorInfo> {
     return page.evaluate(() => {
-        const body = document.body;
+        const {body} = document;
         const bodyText = body?.textContent || '';
         const bodyTextLower = bodyText.toLowerCase();
 
@@ -213,7 +216,7 @@ export async function scrollForPosts(
         // Wait for loading spinner to disappear (if visible)
         const spinner = page.locator(SELECTORS.common.spinner);
         if (await spinner.isVisible().catch(() => false)) {
-            await spinner.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+            await spinner.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => undefined);
         }
 
         await page.waitForTimeout(SCROLL_DELAY);
@@ -221,13 +224,14 @@ export async function scrollForPosts(
         // Inject captured video URLs into page context for parser to read
         if (videoRequests.size > 0) {
             const urls = Array.from(videoRequests);
-            await page.evaluate((captured) => {
+            await page.evaluate(({ captured, key }) => {
                 try {
-                    (window as any).__threadsVideoRequests = captured;
+                    const pageWindow = window as unknown as Record<string, string[] | undefined>;
+                    pageWindow[key] = captured;
                 } catch {
                     /* ignore */
                 }
-            }, urls);
+            }, { captured: urls, key: THREADS_VIDEO_REQUESTS_KEY });
         }
 
         // Collect post IDs currently in DOM and add to cumulative set
@@ -320,8 +324,10 @@ export function handlePageError(errorInfo: PageErrorInfo, _context: string): voi
 /**
  * Sleep utility for delays
  */
-export function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+export async function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
 }
 
 /**
@@ -353,7 +359,7 @@ export async function withRateLimitRetry<T>(
             }
 
             if (attempt < maxRetries) {
-                const delay = backoffDelay * Math.pow(backoffMultiplier, attempt);
+                const delay = backoffDelay * backoffMultiplier**attempt;
                 log.warning(`Rate limited (${context}), retrying in ${delay / 1000}s...`, {
                     attempt: attempt + 1,
                     maxRetries,

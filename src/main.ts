@@ -12,8 +12,8 @@
 import { Actor } from 'apify';
 import { Log } from 'crawlee';
 
-import { searchAction, profileAction, postAction, hashtagAction } from './actions/index.js';
-import type { Input, SearchInput, ProfileInput, HashtagInput, PostInput, BatchInput, ActionInput } from './types.js';
+import { hashtagAction, postAction, profileAction, searchAction } from './actions/index.js';
+import type { ActionInput, BatchInput, HashtagInput, Input, PostInput, ProfileInput, SearchInput } from './types.js';
 
 const log = new Log({ prefix: 'ThreadsToolkit' });
 
@@ -49,24 +49,26 @@ function validateInput(input: Input): void {
     }
 }
 
-async function runSingle(input: Input, log: Log): Promise<void> {
+async function runSingle(input: Input, childLog: Log): Promise<void> {
     switch (input.action) {
         case 'search':
-            await searchAction(input as SearchInput, log);
+            await searchAction(input as SearchInput, childLog);
             break;
         case 'profile':
-            await profileAction(input as ProfileInput, log);
+            await profileAction(input as ProfileInput, childLog);
             break;
         case 'hashtag':
-            await hashtagAction(input as HashtagInput, log);
+            await hashtagAction(input as HashtagInput, childLog);
             break;
         case 'post':
-            await postAction(input as PostInput, log);
+            await postAction(input as PostInput, childLog);
             break;
+        default:
+            throw new Error(`Unknown action: ${(input as Input).action}`);
     }
 }
 
-async function runBatch(batch: BatchInput, log: Log): Promise<void> {
+async function runBatch(batch: BatchInput, childLog: Log): Promise<void> {
     const {
         keywords = [],
         usernames = [],
@@ -80,34 +82,33 @@ async function runBatch(batch: BatchInput, log: Log): Promise<void> {
         storageState,
     } = batch;
 
-    const tasks: Array<{ name: string; fn: () => Promise<void> }> = [];
+    const tasks: { name: string; fn: () => Promise<void> }[] = [];
 
     for (const keyword of keywords) {
         tasks.push({
             name: `search:${keyword}`,
-            fn: () => runSingle({ action: 'search', keyword, maxItems, filter, proxyConfiguration, useCookies, storageState }, log),
+            fn: async () => runSingle({ action: 'search', keyword, maxItems, filter, proxyConfiguration, useCookies, storageState }, childLog),
         });
     }
     for (const username of usernames) {
         tasks.push({
             name: `profile:${username}`,
-            fn: () => runSingle({ action: 'profile', username, maxItems, proxyConfiguration, useCookies, storageState }, log),
+            fn: async () => runSingle({ action: 'profile', username, maxItems, proxyConfiguration, useCookies, storageState }, childLog),
         });
     }
     for (const tag of tags) {
         tasks.push({
             name: `hashtag:${tag}`,
-            fn: () => runSingle({ action: 'hashtag', tag, maxItems, filter, proxyConfiguration, useCookies, storageState }, log),
+            fn: async () => runSingle({ action: 'hashtag', tag, maxItems, filter, proxyConfiguration, useCookies, storageState }, childLog),
         });
     }
     for (const postUrl of postUrls) {
         tasks.push({
             name: `post:${postUrl}`,
-            fn: () => runSingle({ action: 'post', postUrl, proxyConfiguration, useCookies, storageState }, log),
+            fn: async () => runSingle({ action: 'post', postUrl, proxyConfiguration, useCookies, storageState }, childLog),
         });
     }
 
-    let active = 0;
     const queue = [...tasks];
     let success = 0;
     let fail = 0;
@@ -117,16 +118,14 @@ async function runBatch(batch: BatchInput, log: Log): Promise<void> {
         if (queue.length === 0) return;
         const task = queue.shift();
         if (!task) return;
-        active++;
         try {
             await task.fn();
             success++;
         } catch (err) {
             fail++;
             errors.push({ name: task.name, error: String(err) });
-            log.warning('Batch task failed', { task: task.name, error: String(err) });
+            childLog.warning('Batch task failed', { task: task.name, error: String(err) });
         } finally {
-            active--;
             if (queue.length > 0) {
                 await runNext();
             }
@@ -139,7 +138,7 @@ async function runBatch(batch: BatchInput, log: Log): Promise<void> {
     }
     await Promise.all(workers);
 
-    log.info('Batch summary', { total: tasks.length, success, fail, errors });
+    childLog.info('Batch summary', { total: tasks.length, success, fail, errors });
 }
 
 // Main execution with proper error handling

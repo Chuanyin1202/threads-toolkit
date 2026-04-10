@@ -6,19 +6,20 @@
  */
 
 import { Actor } from 'apify';
-import { PlaywrightCrawler, Dataset, Log } from 'crawlee';
-import type { HashtagInput, ThreadsPost } from '../types.js';
+import type { Log } from 'crawlee';
+import { Dataset, PlaywrightCrawler } from 'crawlee';
+
+import type { HashtagInput, ThreadsPost, ThreadsStorageState } from '../types.js';
 import {
-    extractPostsFromPage,
-    SELECTORS,
-    detectPageError,
-    scrollForPosts,
-    validatePost,
-    handlePageError,
     blockHeavyResources,
-    RateLimitError,
     DEFAULT_RATE_LIMIT_CONFIG,
+    detectPageError,
+    extractPostsFromPage,
+    RateLimitError,
+    scrollForPosts,
+    SELECTORS,
     sleep,
+    validatePost,
 } from '../utils/index.js';
 
 /**
@@ -62,6 +63,7 @@ export async function hashtagAction(input: HashtagInput, log: Log): Promise<void
 
     // Shared set for capturing video URLs across hooks and handler
     const videoRequests = new Set<string>();
+    const threadsVideoRequestsKey = '__threadsVideoRequests';
 
     // Create crawler with hashtag-specific handler
     const crawler = new PlaywrightCrawler({
@@ -98,7 +100,7 @@ export async function hashtagAction(input: HashtagInput, log: Log): Promise<void
                 // If this is a retry, apply exponential backoff
                 if (request.retryCount > 0) {
                     const backoffDelay = rateLimitSettings.backoffDelay *
-                        Math.pow(rateLimitSettings.backoffMultiplier, request.retryCount - 1);
+                        rateLimitSettings.backoffMultiplier**(request.retryCount - 1);
                     log.warning(`Retry attempt ${request.retryCount}/${rateLimitSettings.maxRetries}, waiting ${backoffDelay / 1000}s...`);
                     await sleep(backoffDelay);
                 }
@@ -113,7 +115,7 @@ export async function hashtagAction(input: HashtagInput, log: Log): Promise<void
             useFingerprints: false,
             postPageCreateHooks: useAuth ? [
                 async (page) => {
-                    const state = storageState as any;
+                    const state = storageState as ThreadsStorageState | undefined;
                     // Inject cookies
                     const cookies = state?.cookies || [];
                     if (cookies.length > 0) {
@@ -163,13 +165,14 @@ export async function hashtagAction(input: HashtagInput, log: Log): Promise<void
                 await page.waitForTimeout(2000);
 
                 // Inject captured video URLs into page context
-                if (videoRequests.size > 0) {
-                    const urls = Array.from(videoRequests);
-                    log.info('Captured video URLs from network', { count: urls.length });
-                    await page.evaluate((captured) => {
-                        (window as any).__threadsVideoRequests = captured;
-                    }, urls);
-                }
+                    if (videoRequests.size > 0) {
+                        const urls = Array.from(videoRequests);
+                        log.info('Captured video URLs from network', { count: urls.length });
+                        await page.evaluate(({ captured, key }) => {
+                            const pageWindow = window as unknown as Record<string, string[] | undefined>;
+                            pageWindow[key] = captured;
+                        }, { captured: urls, key: threadsVideoRequestsKey });
+                    }
             } catch {
                 // Check for error states
                 const errorInfo = await detectPageError(page);

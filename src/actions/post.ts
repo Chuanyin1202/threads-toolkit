@@ -5,19 +5,21 @@
  */
 
 import { Actor } from 'apify';
-import { PlaywrightCrawler, Dataset, Log } from 'crawlee';
-import type { PostInput } from '../types.js';
+import type { Log } from 'crawlee';
+import { Dataset, PlaywrightCrawler } from 'crawlee';
+
+import type { PostInput, ThreadsStorageState } from '../types.js';
 import {
-    extractSinglePostFromPage,
-    detectPageError,
-    handlePageError,
-    isNotFoundPage,
-    validatePost,
-    scrollForPosts,
-    extractPostsFromPage,
     blockHeavyResources,
     DEFAULT_RATE_LIMIT_CONFIG,
+    detectPageError,
+    extractPostsFromPage,
+    extractSinglePostFromPage,
+    handlePageError,
+    isNotFoundPage,
+    scrollForPosts,
     sleep,
+    validatePost,
 } from '../utils/index.js';
 
 /**
@@ -57,6 +59,7 @@ export async function postAction(input: PostInput, log: Log): Promise<void> {
 
     // Shared set for capturing video URLs across hooks and handler
     const videoRequests = new Set<string>();
+    const threadsVideoRequestsKey = '__threadsVideoRequests';
 
     // Create crawler with post-specific handler
     const crawler = new PlaywrightCrawler({
@@ -93,7 +96,7 @@ export async function postAction(input: PostInput, log: Log): Promise<void> {
                 // If this is a retry, apply exponential backoff
                 if (request.retryCount > 0) {
                     const backoffDelay = rateLimitSettings.backoffDelay *
-                        Math.pow(rateLimitSettings.backoffMultiplier, request.retryCount - 1);
+                        rateLimitSettings.backoffMultiplier**(request.retryCount - 1);
                     log.warning(`Retry attempt ${request.retryCount}/${rateLimitSettings.maxRetries}, waiting ${backoffDelay / 1000}s...`);
                     await sleep(backoffDelay);
                 }
@@ -108,7 +111,7 @@ export async function postAction(input: PostInput, log: Log): Promise<void> {
             useFingerprints: false,
             postPageCreateHooks: useAuth ? [
                 async (page) => {
-                    const state = storageState as any;
+                    const state = storageState as ThreadsStorageState | undefined;
                     // Inject cookies
                     const cookies = state?.cookies || [];
                     if (cookies.length > 0) {
@@ -158,13 +161,14 @@ export async function postAction(input: PostInput, log: Log): Promise<void> {
                 await page.waitForTimeout(2000);
 
                 // Inject captured video URLs into page context
-                if (videoRequests.size > 0) {
-                    const urls = Array.from(videoRequests);
-                    log.info('Captured video URLs from network', { count: urls.length });
-                    await page.evaluate((captured) => {
-                        (window as any).__threadsVideoRequests = captured;
-                    }, urls);
-                }
+                    if (videoRequests.size > 0) {
+                        const urls = Array.from(videoRequests);
+                        log.info('Captured video URLs from network', { count: urls.length });
+                        await page.evaluate(({ captured, key }) => {
+                            const pageWindow = window as unknown as Record<string, string[] | undefined>;
+                            pageWindow[key] = captured;
+                        }, { captured: urls, key: threadsVideoRequestsKey });
+                    }
             } catch {
                 // Check for error states using shared helper
                 const errorInfo = await detectPageError(page);
@@ -227,16 +231,17 @@ export async function postAction(input: PostInput, log: Log): Promise<void> {
 /**
  * Normalize post URL
  */
-function normalizePostUrl(url: string): string | null {
+export function normalizePostUrl(url: string): string | null {
     try {
+        let normalizedUrl = url;
         // Handle various URL formats
-        if (url.includes('threads.net') || url.includes('threads.com')) {
+        if (normalizedUrl.includes('threads.net') || normalizedUrl.includes('threads.com')) {
             // Ensure it has the protocol
-            if (!url.startsWith('http')) {
-                url = 'https://' + url;
+            if (!normalizedUrl.startsWith('http')) {
+                normalizedUrl = `https://${normalizedUrl}`;
             }
             // Normalize domain to threads.com
-            return url.replace('threads.net', 'threads.com');
+            return normalizedUrl.replace('threads.net', 'threads.com');
         }
         return null;
     } catch {
@@ -247,7 +252,7 @@ function normalizePostUrl(url: string): string | null {
 /**
  * Extract post ID from URL
  */
-function extractPostId(url: string): string | null {
+export function extractPostId(url: string): string | null {
     const match = url.match(/\/post\/([A-Za-z0-9_-]+)/);
     return match ? match[1] : null;
 }

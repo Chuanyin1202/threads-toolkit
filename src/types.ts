@@ -2,6 +2,8 @@
  * Threads Toolkit - Type definitions
  */
 
+import type { BrowserContext } from 'playwright';
+
 // =============================================================================
 // Input Types
 // =============================================================================
@@ -36,6 +38,22 @@ export interface BaseInput {
     storageState?: Record<string, unknown>;
     /** Rate limit protection settings */
     rateLimitConfig?: RateLimitConfig;
+}
+
+export interface StorageStateItem {
+    name: string;
+    value: string;
+}
+
+export interface StorageStateOrigin {
+    origin: string;
+    localStorage?: StorageStateItem[];
+    sessionStorage?: StorageStateItem[];
+}
+
+export interface ThreadsStorageState {
+    cookies?: Parameters<BrowserContext['addCookies']>[0];
+    origins?: StorageStateOrigin[];
 }
 
 export interface SearchInput extends BaseInput {

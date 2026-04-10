@@ -8,9 +8,12 @@
  * - Time/number parsing utilities
  */
 
-import type { Page, Locator } from 'playwright';
-import type { ThreadsPost, Author, PostStats, ProfileData } from '../types.js';
+import type { ElementHandle, Locator, Page } from 'playwright';
+
+import type { Author, PostStats, ProfileData, ThreadsPost } from '../types.js';
 import { SELECTORS } from './selectors.js';
+
+const THREADS_VIDEO_REQUESTS_KEY = '__threadsVideoRequests';
 
 /**
  * Extract all posts from a page
@@ -99,7 +102,7 @@ export async function extractPostsFromPage(page: Page, maxItems = Infinity): Pro
  * Used when we have a direct reference to the container element
  */
 async function parsePostFromElement(
-    element: import('playwright').ElementHandle,
+    element: ElementHandle,
     _page: Page,
     postId: string
 ): Promise<ThreadsPost | null> {
@@ -138,9 +141,9 @@ async function parsePostFromElement(
                     !text.match(/^\d+[小時分鐘秒天週月年]?前?$/) &&
                     !text.match(/^\d+[mhd]$/) &&
                     !text.match(/^[\d,]+$/) &&
-                    !text.match(/^\d{1,4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,4}$/) &&
-                    !text.match(/^(讚|留言|轉發|分享|翻譯|Like|Comment|Repost|Share|Translate)/i) &&
-                    !text.toLowerCase().includes("trouble playing this video")
+                        !text.match(/^\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}$/) &&
+                        !text.match(/^(讚|留言|轉發|分享|翻譯|Like|Comment|Repost|Share|Translate)/i) &&
+                        !text.toLowerCase().includes('trouble playing this video')
                 ) {
                     texts.push(text);
                 }
@@ -201,14 +204,14 @@ async function parsePostFromElement(
             const links: string[] = [];
             const anchorElements = container.querySelectorAll('a[href^="http"]');
             for (const a of anchorElements) {
-                const href = a.getAttribute('href') || '';
-                if (href && !href.includes('threads.com')) {
-                    links.push(href);
+                const externalHref = a.getAttribute('href') || '';
+                if (externalHref && !externalHref.includes('threads.com')) {
+                    links.push(externalHref);
                 }
             }
 
             // Get stats - inline parsing to avoid esbuild __name helper issue
-            let likes = 0, replies = 0, reposts = 0, shares = 0;
+            let likes = 0; let replies = 0; let reposts = 0; let shares = 0;
             const roleButtons = container.querySelectorAll('div[role="button"]');
             for (const btn of roleButtons) {
                 const text = btn.textContent || '';
@@ -256,13 +259,14 @@ async function parsePostFromElement(
             // We look for a data attribute that might be injected by the crawler when intercepting requests.
             // If not present, this block is a no-op.
             try {
-                const netVideos = (window as any).__threadsVideoRequests as string[] | undefined;
+                const pageWindow = window as unknown as Record<string, string[] | undefined>;
+                const netVideos = pageWindow[THREADS_VIDEO_REQUESTS_KEY];
                 if (netVideos && Array.isArray(netVideos)) {
-                    for (const url of netVideos) {
-                        if (!videos.includes(url)) videos.push(url);
+                    for (const videoUrl of netVideos) {
+                        if (!videos.includes(videoUrl)) videos.push(videoUrl);
                     }
                 }
-            } catch (e) {
+            } catch {
                 /* ignore */
             }
 
@@ -390,7 +394,7 @@ export async function parsePost(
             images: images.length > 0 ? images : undefined,
             links: links.length > 0 ? links : undefined,
         };
-    } catch (error) {
+    } catch {
         return null;
     }
 }
@@ -440,7 +444,7 @@ async function parseContent(postElement: Locator): Promise<string> {
 
     // Return the longest text (most likely the post content)
     // Clean up trailing UI button texts
-    let content = texts.sort((a, b) => b.length - a.length)[0] || '';
+    const content = texts.sort((a, b) => b.length - a.length)[0] || '';
     return content
         .replace(/\s*(Learn more|了解更多)\s*$/i, '')
         .replace(/\s*(Translate|翻譯)\s*$/i, '')
@@ -467,7 +471,7 @@ async function parseTimestamp(postElement: Locator): Promise<string> {
  * Convert relative time to ISO string
  * Returns empty string if format is unrecognized (caller should handle)
  */
-function parseRelativeTime(text: string): string {
+export function parseRelativeTime(text: string): string {
     const now = new Date();
     const lowerText = text.toLowerCase().trim();
 
@@ -503,6 +507,8 @@ function parseRelativeTime(text: string): string {
             case 'w':
                 now.setDate(now.getDate() - value * 7);
                 break;
+            default:
+                break;
         }
         return now.toISOString();
     }
@@ -513,9 +519,9 @@ function parseRelativeTime(text: string): string {
         const value = parseInt(zhMatch[1], 10);
         const unit = zhMatch[2];
 
-        if (/秒/.test(unit)) {
+        if (unit.includes('秒')) {
             now.setSeconds(now.getSeconds() - value);
-        } else if (/分/.test(unit)) {
+        } else if (unit.includes('分')) {
             now.setMinutes(now.getMinutes() - value);
         } else if (/小時|小时|時/.test(unit)) {
             now.setHours(now.getHours() - value);
@@ -523,7 +529,7 @@ function parseRelativeTime(text: string): string {
             now.setDate(now.getDate() - value);
         } else if (/週|周|星期|礼拜/.test(unit)) {
             now.setDate(now.getDate() - value * 7);
-        } else if (/月/.test(unit)) {
+        } else if (unit.includes('月')) {
             // Approximate months as 30 days
             now.setDate(now.getDate() - value * 30);
         }
@@ -564,7 +570,7 @@ async function parseStats(postElement: Locator): Promise<PostStats> {
  * Parse stat number (handles K, M suffixes and comma separators)
  * Examples: "讚 2,049" -> 2049, "1.5K" -> 1500, "2M" -> 2000000
  */
-function parseStatNumber(text: string): number {
+export function parseStatNumber(text: string): number {
     // Remove all non-numeric characters except . K M and commas
     // First, extract any number-like patterns from the text
     const numberMatch = text.match(/[\d,]+\.?\d*[KkMm]?/);
@@ -970,17 +976,3 @@ export async function fetchProfileAbout(page: Page): Promise<ProfileAboutRespons
         };
     }
 }
-
-// ============================================
-// Exported Utilities
-// ============================================
-
-/**
- * Export parseRelativeTime for external use
- */
-export { parseRelativeTime };
-
-/**
- * Export parseStatNumber for external use
- */
-export { parseStatNumber };
