@@ -13,10 +13,12 @@ import {
     blockHeavyResources,
     DEFAULT_RATE_LIMIT_CONFIG,
     detectPageError,
-    extractPostsFromPage,
     extractSinglePostFromPage,
     handlePageError,
     isNotFoundPage,
+    openIsolatedQueue,
+    requestHandlerTimeoutFor,
+    runSingleRequestCrawl,
     scrollForPosts,
     sleep,
     validatePost,
@@ -62,12 +64,16 @@ export async function postAction(input: PostInput, log: Log): Promise<void> {
     const threadsVideoRequestsKey = '__threadsVideoRequests';
 
     // Create crawler with post-specific handler
+    // Each crawler gets its own queue so batch tasks don't interfere with each other
+    const requestQueue = await openIsolatedQueue('post');
+
     const crawler = new PlaywrightCrawler({
+        requestQueue,
         proxyConfiguration,
         maxRequestsPerCrawl: 1,
         maxConcurrency: 1,
         headless: true,
-        requestHandlerTimeoutSecs: 120,
+        requestHandlerTimeoutSecs: requestHandlerTimeoutFor(input),
         navigationTimeoutSecs: 60,
         maxRequestRetries: rateLimitSettings.maxRetries, // Enable Crawlee retry on failures
         preNavigationHooks: [
@@ -209,8 +215,9 @@ export async function postAction(input: PostInput, log: Log): Promise<void> {
 
             // Fetch replies on the page (treat as posts with source=reply)
             try {
-                await scrollForPosts(page, maxReplies, log);
-                const replies = await extractPostsFromPage(page, maxReplies);
+                const replies = (await scrollForPosts(page, maxReplies, log, input))
+                    .filter((reply) => reply.id !== postData.id)
+                    .slice(0, maxReplies);
                 for (const reply of replies) {
                     if (reply.id === postData.id) continue; // skip main post
                     await Dataset.pushData({ ...reply, source: 'reply', parentId: postData.id });
@@ -223,7 +230,7 @@ export async function postAction(input: PostInput, log: Log): Promise<void> {
     });
 
     // Run crawler
-    await crawler.run([{ url: normalizedUrl }]);
+    await runSingleRequestCrawl(crawler, requestQueue, normalizedUrl, `Post fetch for ${postUrl}`);
 
     log.info('Post action finished', { postUrl });
 }

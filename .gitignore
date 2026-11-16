@@ -12,3 +12,9 @@ storage
 
 # Added by Apify CLI
 .venv
+
+# Saved Threads login sessions (npm run login)
+.auth
+
+# CSV exports of scraped data (npm run export)
+exports

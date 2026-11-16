@@ -80,32 +80,39 @@ async function runBatch(batch: BatchInput, childLog: Log): Promise<void> {
         concurrency = 2,
         useCookies,
         storageState,
+        rateLimitConfig,
+        scrollDelay,
+        maxEmptyScrolls,
+        maxScrollTime,
     } = batch;
+
+    // Settings shared by every task in the batch
+    const common = { proxyConfiguration, useCookies, storageState, rateLimitConfig, scrollDelay, maxEmptyScrolls, maxScrollTime };
 
     const tasks: { name: string; fn: () => Promise<void> }[] = [];
 
     for (const keyword of keywords) {
         tasks.push({
             name: `search:${keyword}`,
-            fn: async () => runSingle({ action: 'search', keyword, maxItems, filter, proxyConfiguration, useCookies, storageState }, childLog),
+            fn: async () => runSingle({ action: 'search', keyword, maxItems, filter, ...common }, childLog),
         });
     }
     for (const username of usernames) {
         tasks.push({
             name: `profile:${username}`,
-            fn: async () => runSingle({ action: 'profile', username, maxItems, proxyConfiguration, useCookies, storageState }, childLog),
+            fn: async () => runSingle({ action: 'profile', username, maxItems, ...common }, childLog),
         });
     }
     for (const tag of tags) {
         tasks.push({
             name: `hashtag:${tag}`,
-            fn: async () => runSingle({ action: 'hashtag', tag, maxItems, filter, proxyConfiguration, useCookies, storageState }, childLog),
+            fn: async () => runSingle({ action: 'hashtag', tag, maxItems, filter, ...common }, childLog),
         });
     }
     for (const postUrl of postUrls) {
         tasks.push({
             name: `post:${postUrl}`,
-            fn: async () => runSingle({ action: 'post', postUrl, proxyConfiguration, useCookies, storageState }, childLog),
+            fn: async () => runSingle({ action: 'post', postUrl, ...common }, childLog),
         });
     }
 
@@ -139,6 +146,10 @@ async function runBatch(batch: BatchInput, childLog: Log): Promise<void> {
     await Promise.all(workers);
 
     childLog.info('Batch summary', { total: tasks.length, success, fail, errors });
+
+    if (tasks.length > 0 && success === 0) {
+        throw new Error(`All ${tasks.length} batch tasks failed`);
+    }
 }
 
 // Main execution with proper error handling

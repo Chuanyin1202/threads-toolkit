@@ -29,7 +29,16 @@ export interface RateLimitConfig {
     backoffMultiplier?: number;
 }
 
-export interface BaseInput {
+export interface ScrollConfig {
+    /** Pause after each scroll so the next batch of posts can load, ms (default: 2000) */
+    scrollDelay?: number;
+    /** Stop after this many scrolls in a row that bring no new posts (default: 4) */
+    maxEmptyScrolls?: number;
+    /** Hard limit on total scrolling time per page, seconds (default: 45) */
+    maxScrollTime?: number;
+}
+
+export interface BaseInput extends ScrollConfig {
     action: ActionType;
     maxItems?: number;
     outputFormat?: OutputFormat;
@@ -140,7 +149,7 @@ export interface CrawlerContext {
     maxItems: number;
 }
 
-export interface BatchInput {
+export interface BatchInput extends ScrollConfig {
     action: ActionType;
     keywords?: string[];
     usernames?: string[];
@@ -152,4 +161,5 @@ export interface BatchInput {
     concurrency?: number;
     useCookies?: boolean;
     storageState?: Record<string, unknown>;
+    rateLimitConfig?: RateLimitConfig;
 }

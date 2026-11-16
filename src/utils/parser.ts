@@ -24,7 +24,12 @@ const THREADS_VIDEO_REQUESTS_KEY = '__threadsVideoRequests';
  * locate its container and parse it. This avoids issues with nested
  * containers where :has() might select outer wrappers.
  */
-export async function extractPostsFromPage(page: Page, maxItems = Infinity): Promise<ThreadsPost[]> {
+export async function extractPostsFromPage(
+    page: Page,
+    maxItems = Infinity,
+    /** Post IDs that were already parsed earlier (e.g. on a previous scroll step) - skipped to save time */
+    skipIds?: ReadonlySet<string>,
+): Promise<ThreadsPost[]> {
     const posts: ThreadsPost[] = [];
     const seenIds = new Set<string>();
 
@@ -46,6 +51,7 @@ export async function extractPostsFromPage(page: Page, maxItems = Infinity): Pro
         const postId = match[2];
         if (seenIds.has(postId)) continue;
         seenIds.add(postId);
+        if (skipIds?.has(postId)) continue;
 
         // Find the post container by walking up from the link
         // Use evaluateHandle to get the container element, then wrap it

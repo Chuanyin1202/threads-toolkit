@@ -11,8 +11,10 @@ import {
     blockHeavyResources,
     DEFAULT_RATE_LIMIT_CONFIG,
     detectPageError,
-    extractPostsFromPage,
+    openIsolatedQueue,
     RateLimitError,
+    requestHandlerTimeoutFor,
+    runSingleRequestCrawl,
     scrollForPosts,
     SELECTORS,
     sleep,
@@ -59,12 +61,16 @@ export async function searchAction(input: SearchInput, log: Log): Promise<void> 
     const proxyConfiguration = await Actor.createProxyConfiguration(proxyConfig);
 
     // Create crawler with search-specific handler
+    // Each crawler gets its own queue so batch tasks don't interfere with each other
+    const requestQueue = await openIsolatedQueue('search');
+
     const crawler = new PlaywrightCrawler({
+        requestQueue,
         proxyConfiguration,
         maxRequestsPerCrawl: 1, // Single page for search
         maxConcurrency: 1, // Single browser for stability
         headless: true,
-        requestHandlerTimeoutSecs: 120,
+        requestHandlerTimeoutSecs: requestHandlerTimeoutFor(input),
         navigationTimeoutSecs: 60,
         maxRequestRetries: rateLimitSettings.maxRetries, // Enable Crawlee retry on failures
         preNavigationHooks: [
@@ -176,6 +182,12 @@ export async function searchAction(input: SearchInput, log: Log): Promise<void> 
                     throw new RateLimitError('Rate limited: Threads is limiting requests. Try again later or reduce request frequency.');
                 }
 
+                // Threads explicitly says there are no results - not an error, don't retry
+                if (errorInfo.isNoResults) {
+                    log.info('No results for this search query', { keyword });
+                    return;
+                }
+
                 if (errorInfo.isLoginWall) {
                     throw new Error('Login required: Threads is showing a login wall. Try using a different proxy or reducing request frequency.');
                 }
@@ -199,10 +211,9 @@ export async function searchAction(input: SearchInput, log: Log): Promise<void> 
             }
 
             // Scroll to load more posts
-            await scrollForPosts(page, maxItems, log);
+            const posts = await scrollForPosts(page, maxItems, log, input);
 
             // Extract posts using centralized parser
-            const posts = await extractPostsFromPage(page, maxItems);
             log.info('Extracted posts from page', { count: posts.length });
 
             // Process and save posts with validation
@@ -222,8 +233,8 @@ export async function searchAction(input: SearchInput, log: Log): Promise<void> 
                 collectedPosts.push(post);
                 log.debug('Collected post', { id: post.id, total: collectedPosts.length });
 
-                // Push to dataset immediately
-                await Dataset.pushData(post);
+                // Push to dataset immediately, tagged with the query that found it
+                await Dataset.pushData({ ...post, source: 'search', keyword });
             }
 
             const totalSkipped = Object.values(skipReasons).reduce((a, b) => a + b, 0);
@@ -236,7 +247,7 @@ export async function searchAction(input: SearchInput, log: Log): Promise<void> 
     });
 
     // Run crawler
-    await crawler.run([{ url: searchUrl }]);
+    await runSingleRequestCrawl(crawler, requestQueue, searchUrl, `Search for "${keyword}"`);
 
     log.info('Search action finished', { totalPosts: collectedPosts.length });
 }
@@ -254,9 +265,12 @@ function buildSearchUrl(keyword: string, filter: string): string {
         serp_type: 'default',
     });
 
-    // Add filter if specified
-    if (filter === 'top') {
-        params.set('filter', 'top');
+    // Threads opens the Top tab by default; the Recent tab is filter=recent
+
+    if (filter === 'recent') {
+
+        params.set('filter', 'recent');
+
     }
 
     return `${baseUrl}?${params.toString()}`;

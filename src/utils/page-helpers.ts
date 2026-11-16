@@ -10,7 +10,8 @@
 import type { Log } from 'crawlee';
 import type { Page } from 'playwright';
 
-import type { ProfileData, RateLimitConfig, ThreadsPost } from '../types.js';
+import type { ProfileData, RateLimitConfig, ScrollConfig, ThreadsPost } from '../types.js';
+import { extractPostsFromPage } from './parser.js';
 import { SELECTORS } from './selectors.js';
 
 const THREADS_VIDEO_REQUESTS_KEY = '__threadsVideoRequests';
@@ -30,6 +31,8 @@ export interface PageErrorInfo {
     isLoginWall: boolean;
     isErrorPage: boolean;
     isRateLimited: boolean;
+    /** Threads explicitly shows an empty search result ("No results.") */
+    isNoResults: boolean;
     isEmpty: boolean;
     hasMainContent: boolean;
     postLinkCount: number;
@@ -69,7 +72,9 @@ export async function blockHeavyResources(page: Page): Promise<void> {
 export async function detectPageError(page: Page): Promise<PageErrorInfo> {
     return page.evaluate(() => {
         const {body} = document;
-        const bodyText = body?.textContent || '';
+        // innerText = visible text only. textContent would include inline <script> payloads,
+        // which contain words like "blocked"/"unavailable" and caused false error detection.
+        const bodyText = body?.innerText || '';
         const bodyTextLower = bodyText.toLowerCase();
 
         // Check for login wall by looking for login buttons with specific text
@@ -109,6 +114,19 @@ export async function detectPageError(page: Page): Promise<PageErrorInfo> {
         const isRateLimited = rateLimitPatterns.some((pattern) =>
             bodyTextLower.includes(pattern.toLowerCase())
         );
+
+        // Explicit empty search result
+        const noResultsPatterns = [
+            'no results',
+            'нет результатов',
+            'ничего не найдено',
+            '找不到結果',
+            '沒有結果',
+            '没有结果',
+            '結果が見つかりません',
+            '결과 없음',
+        ];
+        const isNoResults = noResultsPatterns.some((pattern) => bodyTextLower.includes(pattern));
 
         // Check for error messages in multiple languages
         const errorPatterns = [
@@ -151,6 +169,7 @@ export async function detectPageError(page: Page): Promise<PageErrorInfo> {
             isLoginWall,
             isErrorPage,
             isRateLimited,
+            isNoResults,
             isEmpty,
             hasMainContent,
             postLinkCount,
@@ -160,22 +179,38 @@ export async function detectPageError(page: Page): Promise<PageErrorInfo> {
 }
 
 /**
- * Scroll page to load more posts
+ * Scroll page to load more posts and return every post parsed along the way
  *
  * Uses cumulative ID tracking to handle Threads' dynamic DOM where
  * old posts get unloaded as new ones load (virtual scrolling).
  * Note: Threads limits content for non-logged-in users (~10 for search, ~20 for profile).
  */
+export const DEFAULT_SCROLL_CONFIG: Required<ScrollConfig> = {
+    scrollDelay: 2000,
+    maxEmptyScrolls: 4,
+    maxScrollTime: 45,
+};
+
+/**
+ * Request handler timeout that leaves room for the configured scroll time
+ * (page load + error checks + parsing on top of scrolling).
+ */
+export function requestHandlerTimeoutFor(scrollConfig: ScrollConfig): number {
+    const scrollSecs = scrollConfig.maxScrollTime ?? DEFAULT_SCROLL_CONFIG.maxScrollTime;
+    return Math.max(120, scrollSecs + 120);
+}
+
 export async function scrollForPosts(
     page: Page,
     maxItems: number,
-    log: Log
-): Promise<void> {
-    // Dynamic limit based on maxItems to avoid wasting time
-    const maxAttempts = Math.min(20, Math.ceil(maxItems / 5) + 5);
-    const MAX_NO_NEW_CONTENT = 4;
-    const SCROLL_DELAY = 2000;
-    const GLOBAL_TIMEOUT = 45000; // 45s max total scroll time
+    log: Log,
+    scrollConfig: ScrollConfig = {},
+): Promise<ThreadsPost[]> {
+    const SCROLL_DELAY = Math.max(0, scrollConfig.scrollDelay ?? DEFAULT_SCROLL_CONFIG.scrollDelay);
+    const MAX_NO_NEW_CONTENT = Math.max(1, scrollConfig.maxEmptyScrolls ?? DEFAULT_SCROLL_CONFIG.maxEmptyScrolls);
+    const GLOBAL_TIMEOUT = Math.max(1, scrollConfig.maxScrollTime ?? DEFAULT_SCROLL_CONFIG.maxScrollTime) * 1000;
+    // Dynamic limit based on maxItems to avoid wasting time (the time limit above is the hard cap)
+    const maxAttempts = Math.ceil(maxItems / 5) + 5;
     let noNewContentCount = 0;
     let scrollCount = 0;
     const startTime = Date.now();
@@ -183,6 +218,17 @@ export async function scrollForPosts(
     // Track ALL seen post IDs across scrolls (cumulative)
     // This handles Threads' virtual scrolling where old posts get unloaded
     const seenPostIds = new Set<string>();
+
+    // Parsed posts collected on every step. Threads unloads posts that scrolled far out of view,
+    // so parsing only once at the end would lose everything but the last screen.
+    const collected = new Map<string, ThreadsPost>();
+    const collectVisiblePosts = async (): Promise<void> => {
+        const visible = await extractPostsFromPage(page, Infinity, new Set(collected.keys())).catch(() => [] as ThreadsPost[]);
+        for (const post of visible) {
+            if (!collected.has(post.id)) collected.set(post.id, post);
+        }
+    };
+    await collectVisiblePosts();
     const videoRequests = new Set<string>();
 
     // Intercept network responses to capture video URLs as fallback
@@ -206,10 +252,26 @@ export async function scrollForPosts(
 
         scrollCount++;
 
-        // Scroll in steps to trigger lazy loading (Threads uses virtual scrolling)
-        const viewportHeight = await page.evaluate(() => window.innerHeight);
+        // Scroll in steps to trigger lazy loading (Threads uses virtual scrolling).
+        // The feed lives in an inner scroll container (the document itself is not scrollable),
+        // so scroll the largest scrollable element and fall back to the window.
         for (let step = 0; step < 3; step++) {
-            await page.evaluate((h) => window.scrollBy(0, h * 0.8), viewportHeight);
+            await page.evaluate(() => {
+                // Only containers that actually hold posts - a logged-in page also has a scrollable sidebar
+                const scrollers = Array.from(document.querySelectorAll<HTMLElement>('div, main, section')).filter(
+                    (el) =>
+                        el.scrollHeight > el.clientHeight + 50 &&
+                        /(auto|scroll)/.test(getComputedStyle(el).overflowY) &&
+                        el.querySelector('a[href*="/post/"]') !== null,
+                );
+                scrollers.sort((a, b) => b.scrollHeight - a.scrollHeight);
+                const scroller = scrollers[0];
+                if (scroller) {
+                    scroller.scrollBy(0, scroller.clientHeight * 0.8);
+                } else {
+                    window.scrollBy(0, window.innerHeight * 0.8);
+                }
+            });
             await page.waitForTimeout(300);
         }
 
@@ -247,23 +309,47 @@ export async function scrollForPosts(
 
         const previousSize = seenPostIds.size;
         currentIds.forEach((id) => seenPostIds.add(id));
+        await collectVisiblePosts();
 
         if (seenPostIds.size === previousSize) {
             noNewContentCount++;
             log.info('Scroll: no new posts', { attempt: i + 1, noNewCount: noNewContentCount, total: seenPostIds.size });
+
+            // Logged-out users get a fixed set of posts followed by a "Log in for more" banner.
+            // Waiting longer won't load anything, so stop and say why.
+            if (await isLoginForMoreShown(page)) {
+                log.warning('Threads shows "Log in for more" - no more posts without login. Use useCookies + storageState to get more.', {
+                    total: seenPostIds.size,
+                });
+                break;
+            }
         } else {
             noNewContentCount = 0;
             log.info('Scroll: found posts', { attempt: i + 1, newPosts: seenPostIds.size - previousSize, total: seenPostIds.size });
         }
 
         // Stop early if we have enough posts
-        if (seenPostIds.size >= maxItems * 1.5) {
-            log.info('Collected enough posts, stopping scroll', { posts: seenPostIds.size });
+        if (collected.size >= maxItems * 1.2) {
+            log.info('Collected enough posts, stopping scroll', { posts: collected.size });
             break;
         }
     }
 
-    log.info('Scroll complete', { totalSeen: seenPostIds.size, scrollAttempts: scrollCount });
+    log.info('Scroll complete', { totalSeen: seenPostIds.size, parsed: collected.size, scrollAttempts: scrollCount });
+    return Array.from(collected.values());
+}
+
+/**
+ * Detect the end-of-feed banner Threads shows to logged-out users
+ * ("Log in for more threads about this topic.")
+ */
+async function isLoginForMoreShown(page: Page): Promise<boolean> {
+    return page
+        .evaluate(() => {
+            const text = (document.body?.innerText || '').toLowerCase();
+            return ['log in for more', 'log in to see more', 'войдите, чтобы', '登入以查看更多', '登录以查看更多'].some((p) => text.includes(p));
+        })
+        .catch(() => false);
 }
 
 /**

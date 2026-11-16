@@ -13,11 +13,13 @@ import {
     blockHeavyResources,
     DEFAULT_RATE_LIMIT_CONFIG,
     detectPageError,
-    extractPostsFromPage,
     extractProfileFromPage,
     fetchProfileAbout,
     handlePageError,
     isNotFoundPage,
+    openIsolatedQueue,
+    requestHandlerTimeoutFor,
+    runSingleRequestCrawl,
     scrollForPosts,
     sleep,
     validatePost,
@@ -54,12 +56,16 @@ export async function profileAction(input: ProfileInput, log: Log): Promise<void
     const threadsVideoRequestsKey = '__threadsVideoRequests';
 
     // Create crawler with profile-specific handler
+    // Each crawler gets its own queue so batch tasks don't interfere with each other
+    const requestQueue = await openIsolatedQueue('profile');
+
     const crawler = new PlaywrightCrawler({
+        requestQueue,
         proxyConfiguration,
         maxRequestsPerCrawl: 1,
         maxConcurrency: 1,
         headless: true,
-        requestHandlerTimeoutSecs: 120,
+        requestHandlerTimeoutSecs: requestHandlerTimeoutFor(input),
         navigationTimeoutSecs: 60,
         maxRequestRetries: rateLimitSettings.maxRetries, // Enable Crawlee retry on failures
         preNavigationHooks: [
@@ -236,8 +242,7 @@ export async function profileAction(input: ProfileInput, log: Log): Promise<void
                         }, { captured: urls, key: threadsVideoRequestsKey });
                     }
 
-                    await scrollForPosts(page, maxItems, log);
-                    const posts = await extractPostsFromPage(page, maxItems);
+                    const posts = (await scrollForPosts(page, maxItems, log, input)).slice(0, maxItems);
                     let savedCount = 0;
                     for (const post of posts) {
                         const postValidation = validatePost(post);
@@ -257,7 +262,7 @@ export async function profileAction(input: ProfileInput, log: Log): Promise<void
     });
 
     // Run crawler
-    await crawler.run([{ url: profileUrl }]);
+    await runSingleRequestCrawl(crawler, requestQueue, profileUrl, `Profile fetch for @${username}`);
 
     log.info('Profile action finished', { username });
 }

@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { Page } from 'playwright';
 import { chromium } from 'playwright';
 
+import { detectPageError } from '../src/utils/page-helpers.js';
 import {
     extractPostsFromPage,
     extractProfileFromPage,
@@ -107,4 +108,28 @@ void test('extractSinglePostFromPage parses a dedicated post page fixture', asyn
     assert.equal(post?.url, 'https://www.threads.com/@alice/post/abc123');
     assert.equal(post?.author.username, 'alice');
     assert.equal(post?.author.displayName, 'Alice Example');
+});
+
+const NO_RESULTS_HTML = `
+<!doctype html>
+<html>
+  <body>
+    <div role="main">
+      <div>"@someone"</div>
+      <div>No results.</div>
+      <a href="/login">Log in or sign up for Threads</a>
+    </div>
+    <script type="application/json">
+      {"strings":{"account_blocked":"This account is blocked","feature":"unavailable"}}
+    </script>
+  </body>
+</html>
+`;
+
+void test('detectPageError reports "No results" and ignores error words inside scripts', async () => {
+    const info = await withPage(NO_RESULTS_HTML, async (page) => detectPageError(page));
+
+    assert.equal(info.isNoResults, true);
+    assert.equal(info.isErrorPage, false);
+    assert.equal(info.isRateLimited, false);
 });
